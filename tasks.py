@@ -1,6 +1,6 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
 from duckduckgo_search import DDGS
 from .celery_worker import celery_app
 from .database import get_session
@@ -9,7 +9,10 @@ from sqlmodel import select, Session as DbSession
 from typing import List, Dict
 
 # Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+client = None
+if GEMINI_API_KEY:
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
 @celery_app.task
 def perform_interview_research(session_id: str, company: str, role: str):
@@ -40,7 +43,9 @@ def perform_interview_research(session_id: str, company: str, role: str):
         search_context = "\n\n".join([f"Title: {r['title']}\nSnippet: {r['body']}\nLink: {r['href']}" for r in results])
         
         # 3. Synthesize with LLM
-        model = genai.GenerativeModel('gemini-flash-latest')
+        if not client:
+             raise ValueError("GEMINI_API_KEY not configured")
+
         prompt = f"""
         You are an expert technical recruiter. Based on the following search results, identify the typical interview rounds for a {role} position at {company}.
         
@@ -63,7 +68,10 @@ def perform_interview_research(session_id: str, company: str, role: str):
         Return ONLY the JSON.
         """
         
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt
+        )
         # Clean up response if it contains markdown code blocks
         text = response.text.replace("```json", "").replace("```", "").strip()
         data = json.loads(text)
@@ -112,7 +120,9 @@ def perform_context_research(session_id: str, company: str, role: str):
         raw_context = "\n\n".join([f"Title: {r['title']}\nSnippet: {r['body']}\nLink: {r['href']}" for r in results])
         
         # 2. Evaluator Agent (Check if data is sufficient)
-        model = genai.GenerativeModel('gemini-flash-latest')
+        if not client:
+             raise ValueError("GEMINI_API_KEY not configured")
+
         eval_prompt = f"""
         You are a Data Quality Evaluator. Analyze the following search results for {company}.
         Determine if there is sufficient information about:
@@ -130,7 +140,10 @@ def perform_context_research(session_id: str, company: str, role: str):
             "reasoning": "brief explanation"
         }}
         """
-        eval_response = model.generate_content(eval_prompt)
+        eval_response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=eval_prompt
+        )
         eval_text = eval_response.text.replace("```json", "").replace("```", "").strip()
         eval_data = json.loads(eval_text)
         
@@ -152,7 +165,10 @@ def perform_context_research(session_id: str, company: str, role: str):
         
         Return a well-formatted Markdown string.
         """
-        clean_response = model.generate_content(clean_prompt)
+        clean_response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=clean_prompt
+        )
         clean_content = clean_response.text
         
         # 4. Store in ContextData
