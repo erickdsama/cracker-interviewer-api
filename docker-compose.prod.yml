@@ -15,7 +15,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GCP_SERVICE_ACCOUNT_JSON=${GCP_SERVICE_ACCOUNT_JSON}
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
   worker:
     build: .
