@@ -33,7 +33,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GCP_SERVICE_ACCOUNT_JSON=${GCP_SERVICE_ACCOUNT_JSON}
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
-    command: celery -A celery_worker.celery_app worker --loglevel=info
+    command: celery -A backend.celery_worker.celery_app worker --loglevel=info
     networks:
       - coolify
 networks:
