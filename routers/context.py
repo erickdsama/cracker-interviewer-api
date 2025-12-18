@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends
 import uuid
-from ..database import get_session
-from ..models import Session as DbSession, ContextData
-from ..services.scraper import scraper_service
+from ..core.models import ContextData
+from ..services.session import SessionService
+from .sessions import get_session_service
 
 router = APIRouter(prefix="/context", tags=["context"])
 
@@ -11,38 +10,14 @@ router = APIRouter(prefix="/context", tags=["context"])
 async def add_url_context(
     session_id: uuid.UUID,
     url: str,
-    session: Session = Depends(get_session)
+    session_service: SessionService = Depends(get_session_service)
 ):
-    db_session = session.get(DbSession, session_id)
-    if not db_session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    content = scraper_service.scrape_url(url)
-    if not content:
-        raise HTTPException(status_code=400, detail="Failed to scrape URL")
-        
-    context_data = ContextData(session_id=session_id, source=url, content=content[:5000]) # Limit content size
-    session.add(context_data)
-    session.commit()
-    session.refresh(context_data)
-    
-    return context_data
+    return session_service.add_url_context(session_id, url)
 
 @router.post("/{session_id}/add-reddit")
 async def add_reddit_context(
     session_id: uuid.UUID,
     query: str,
-    session: Session = Depends(get_session)
+    session_service: SessionService = Depends(get_session_service)
 ):
-    db_session = session.get(DbSession, session_id)
-    if not db_session:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
-    content = scraper_service.scrape_reddit(query)
-    
-    context_data = ContextData(session_id=session_id, source=f"Reddit: {query}", content=content)
-    session.add(context_data)
-    session.commit()
-    session.refresh(context_data)
-    
-    return context_data
+    return session_service.add_reddit_context(session_id, query)

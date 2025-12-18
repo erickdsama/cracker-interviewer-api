@@ -3,8 +3,8 @@ import json
 from google import genai
 from duckduckgo_search import DDGS
 from .celery_worker import celery_app
-from .database import get_session
-from .models import Session, SessionStep, StepType, StepStatus
+from .core.database import get_session
+from .core.models import Session, SessionStep, StepType, StepStatus
 from sqlmodel import select, Session as DbSession
 from typing import List, Dict
 
@@ -22,7 +22,7 @@ def perform_interview_research(session_id: str, company: str, role: str):
     print(f"Starting research for {company} - {role} (Session {session_id})")
     
     # 1. Update status to processing
-    from .database import engine
+    from .core.database import engine
     with DbSession(engine) as db:
         session = db.get(Session, session_id)
         if not session:
@@ -107,8 +107,8 @@ def perform_context_research(session_id: str, company: str, role: str):
     Workflow: Search Agent -> Evaluator Agent -> Cleaner Agent
     """
     print(f"Starting context research for {company} - {role} (Session {session_id})")
-    from .database import engine
-    from .models import ContextData
+    from .core.database import engine
+    from .core.models import ContextData
 
     try:
         # 1. Search Agent

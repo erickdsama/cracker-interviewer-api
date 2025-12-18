@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 # Trigger reload
 from contextlib import asynccontextmanager
-from .database import init_db
+from .core.database import init_db
 from .routers import auth, sessions, context, speech, code
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +33,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add ProxyHeadersMiddleware to trust X-Forwarded-Proto from reverse proxy (Coolify/Traefik)
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 app.include_router(auth.router)
 app.include_router(sessions.router)

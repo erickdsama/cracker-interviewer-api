@@ -1,6 +1,6 @@
 from sqlmodel import select, Session
-from ..models import KnowledgeBase
-from ..database import engine
+from ..core.models import KnowledgeBase
+from ..core.database import engine
 
 def seed_knowledge_base():
     """

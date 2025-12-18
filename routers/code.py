@@ -1,25 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-import sys
-import io
-import contextlib
+from ..services.code import CodeService
 
 router = APIRouter(prefix="/code", tags=["code"])
 
 class CodeRequest(BaseModel):
     code: str
 
+def get_code_service() -> CodeService:
+    return CodeService()
+
 @router.post("/run")
-async def run_code(request: CodeRequest):
-    code = request.code
-    output = io.StringIO()
-    
-    try:
-        # Capture stdout
-        with contextlib.redirect_stdout(output):
-            # Use a restricted global scope if needed, but for local dev exec is fine
-            exec(code, {"__name__": "__main__"})
-            
-        return {"output": output.getvalue()}
-    except Exception as e:
-        return {"output": f"Error: {str(e)}"}
+async def run_code(request: CodeRequest, code_service: CodeService = Depends(get_code_service)):
+    output = code_service.run_code(request.code)
+    return {"output": output}
