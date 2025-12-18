@@ -2,6 +2,9 @@ import requests
 import csv
 import io
 import random
+from ..core.logger import get_logger
+
+logger = get_logger(__name__)
 
 class LeetCodeService:
     def __init__(self):
@@ -16,7 +19,7 @@ class LeetCodeService:
         try:
             response = requests.get(url)
             if response.status_code != 200:
-                print(f"Failed to fetch problems for {company_name} (URL: {url})")
+                logger.warning(f"Failed to fetch problems for {company_name} (URL: {url})")
                 return []
                 
             # Parse CSV
@@ -37,7 +40,7 @@ class LeetCodeService:
                 
             return problems
         except Exception as e:
-            print(f"Error fetching LeetCode problems: {e}")
+            logger.error(f"Error fetching LeetCode problems: {e}")
             return []
 
     def get_random_problem(self, company_name: str):

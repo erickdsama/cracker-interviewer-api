@@ -121,3 +121,10 @@ async def get_research_status(
         "status": session.research_status,
         "data": session.research_data
     }
+
+@router.post("/{session_id}/close")
+async def close_session(
+    session_id: uuid.UUID,
+    session_service: SessionService = Depends(get_session_service)
+):
+    return session_service.close_session(session_id)

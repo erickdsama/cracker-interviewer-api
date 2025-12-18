@@ -1,6 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 # from playwright.sync_api import sync_playwright # Uncomment when ready to use Playwright
+from ..core.logger import get_logger
+
+logger = get_logger(__name__)
 
 class ScraperService:
     def scrape_url(self, url: str) -> str:
@@ -25,7 +28,7 @@ class ScraperService:
             
             return text
         except Exception as e:
-            print(f"Error scraping {url}: {e}")
+            logger.error(f"Error scraping {url}: {e}")
             return ""
 
     def search_company(self, company_name: str) -> str:
@@ -50,7 +53,30 @@ class ScraperService:
                     
                 return summary
         except Exception as e:
-            print(f"Error searching company {company_name}: {e}")
+            logger.error(f"Error searching company {company_name}: {e}")
             return f"Could not retrieve information for {company_name}."
+
+    def scrape_reddit(self, query: str) -> str:
+        """
+        Searches Reddit for the query and returns a summary of discussions.
+        """
+        try:
+            from duckduckgo_search import DDGS
+            
+            with DDGS() as ddgs:
+                # Search specifically on reddit.com
+                results = list(ddgs.text(f"site:reddit.com {query}", max_results=5))
+                
+                if not results:
+                    return f"No Reddit discussions found for {query}."
+                
+                summary = f"Reddit discussions about {query}:\n"
+                for res in results:
+                    summary += f"- {res['title']}: {res['body']}\n"
+                    
+                return summary
+        except Exception as e:
+            logger.error(f"Error scraping Reddit for {query}: {e}")
+            return f"Could not retrieve Reddit information for {query}."
 
 scraper_service = ScraperService()

@@ -10,6 +10,7 @@ from ..repositories.session import SessionRepository
 from ..services.ai import ai_service
 from ..services.scraper import scraper_service
 from ..services.parser import parser_service
+from ..services.storage import storage_service
 from ..tasks import perform_interview_research, perform_context_research
 
 class SessionService:
@@ -58,19 +59,20 @@ class SessionService:
     def upload_resume(self, session_id: uuid.UUID, resume_file: UploadFile) -> Dict:
         db_session = self.get_session(session_id)
         
-        upload_dir = "backend/uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_location = f"{upload_dir}/{db_session.id}_{resume_file.filename}"
-        with open(file_location, "wb+") as file_object:
-            shutil.copyfileobj(resume_file.file, file_object)
-            
-        parsed_text = parser_service.parse_resume(file_location)
+        # 1. Upload File (S3 or Local)
+        destination_path = f"{db_session.id}_{resume_file.filename}"
+        file_location = storage_service.upload_file(resume_file, destination_path)
+        
+        # 2. Parse Resume
+        # Reset file pointer to read for parsing
+        resume_file.file.seek(0)
+        parsed_text = parser_service.parse_resume(resume_file.file, filename=resume_file.filename)
         
         db_resume = Resume(user_id=db_session.user_id, file_path=file_location, parsed_content=parsed_text)
         self.session_repository.session.add(db_resume)
         self.session_repository.session.commit()
         
-        return {"status": "uploaded", "filename": resume_file.filename}
+        return {"status": "uploaded", "filename": resume_file.filename, "location": file_location}
 
     def start_session(self, session_id: uuid.UUID) -> Dict:
         db_session = self.get_session(session_id)
@@ -194,10 +196,17 @@ class SessionService:
             if entry["role"] != "system":
                 history.append(f"{entry['role']}: {entry['content']}")
                 
+        # Agent 1: Bar Raiser (Standard Evaluation)
         feedback = ai_service.evaluate_step(context_str, history, step.step_type)
         
+        # Agent 2: Hiring Manager (Fresh Considerations, aligned with Bar Raiser)
+        hm_feedback = ai_service.get_hiring_manager_feedback(context_str, history, bar_raiser_feedback=feedback)
+        
+        # Combine feedback
+        combined_feedback = f"{feedback}\n\n---\n\n{hm_feedback}"
+        
         step.status = StepStatus.COMPLETED
-        step.feedback = feedback
+        step.feedback = combined_feedback
         self.session_repository.session.add(step)
         
         # Activate next step
@@ -245,30 +254,15 @@ class SessionService:
     def add_reddit_context(self, session_id: uuid.UUID, query: str) -> ContextData:
         db_session = self.get_session(session_id)
         
-        # Note: ScraperService needs scrape_reddit method. 
-        # The original router called scraper_service.scrape_reddit(query)
-        # But I didn't see scrape_reddit in scraper.py when I viewed it earlier.
-        # Let's assume it exists or I need to add it.
-        # Wait, I viewed scraper.py and it DID NOT have scrape_reddit.
-        # It only had scrape_url and search_company.
-        # This implies the original code in routers/context.py was calling a non-existent method or I missed it.
-        # Let's check routers/context.py again.
-        # It calls scraper_service.scrape_reddit(query).
-        # Maybe I missed it in scraper.py view? Or it was added dynamically?
-        # Let's assume I need to implement it or it's missing.
-        # For now, I'll add the call and if it fails I'll fix scraper service.
-        
-        if hasattr(scraper_service, 'scrape_reddit'):
-             content = scraper_service.scrape_reddit(query)
-        else:
-             content = f"Reddit scraping not implemented for query: {query}"
-
+        content = scraper_service.scrape_reddit(query)
+            
         context_data = ContextData(session_id=session_id, source=f"Reddit: {query}", content=content)
         self.session_repository.session.add(context_data)
         self.session_repository.session.commit()
         self.session_repository.session.refresh(context_data)
         
         return context_data
+
 
     def _build_context_string(self, db_session: DbSession) -> str:
         context_str = f"Job Title: {db_session.job_title}\nCompany: {db_session.company_name}\nJD: {db_session.jd_content}\n"
@@ -299,3 +293,10 @@ class SessionService:
             step.roadmap = [item.strip() for item in roadmap_str.split(",")]
             ai_response = ai_response.replace(f"<roadmap>{roadmap_str}</roadmap>", f"**Roadmap:** {roadmap_str}\n")
         return ai_response
+
+    def close_session(self, session_id: uuid.UUID) -> Dict:
+        db_session = self.get_session(session_id)
+        db_session.status = SessionStatus.COMPLETED
+        self.session_repository.session.add(db_session)
+        self.session_repository.session.commit()
+        return {"status": "closed"}

@@ -1,6 +1,9 @@
 from sqlmodel import select, Session
 from ..core.models import KnowledgeBase
 from ..core.database import engine
+from ..core.logger import get_logger
+
+logger = get_logger(__name__)
 
 def seed_knowledge_base():
     """
@@ -12,7 +15,7 @@ def seed_knowledge_base():
         if existing:
             return
 
-        print("Seeding Knowledge Base...")
+        logger.info("Seeding Knowledge Base...")
         
         initial_data = [
             {
@@ -46,4 +49,5 @@ def seed_knowledge_base():
             session.add(kb_item)
         
         session.commit()
-        print("Knowledge Base seeded.")
+        session.commit()
+        logger.info("Knowledge Base seeded.")

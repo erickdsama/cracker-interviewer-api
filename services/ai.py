@@ -13,13 +13,16 @@ if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
 
 from .strategies import ScreeningStrategy, BehavioralStrategy, TechnicalStrategy, SystemDesignStrategy
+from ..core.logger import get_logger
+
+logger = get_logger(__name__)
 
 import time
 from google.api_core import exceptions
 
 class AIService:
     def __init__(self):
-        self.model_name = 'gemini-1.5-flash'
+        self.model_name = 'gemini-2.0-flash'
         self.strategies = {
             "screening": ScreeningStrategy(),
             "behavioral": BehavioralStrategy(),
@@ -58,7 +61,7 @@ class AIService:
         retries = 3
         for attempt in range(retries):
             try:
-                print(f"Generating AI response for step: {step_type} (Attempt {attempt + 1})...")
+                logger.info(f"Generating AI response for step: {step_type} (Attempt {attempt + 1})...")
                 response = client.models.generate_content(
                     model=self.model_name,
                     contents=prompt
@@ -67,7 +70,7 @@ class AIService:
             except Exception as e:
                 # Basic retry logic, catching general exception as genai exceptions might differ
                 wait_time = (2 ** attempt) + 1 # 2, 3, 5 seconds
-                print(f"Error or quota exceeded. Retrying in {wait_time} seconds... Error: {e}")
+                logger.warning(f"Error or quota exceeded. Retrying in {wait_time} seconds... Error: {e}")
                 time.sleep(wait_time)
         
         return "Sorry, the AI service is currently busy. Please try again later."
@@ -82,16 +85,68 @@ class AIService:
         retries = 3
         for attempt in range(retries):
             try:
-                print(f"Generating evaluation for step: {step_type} (Attempt {attempt + 1})...")
+                logger.info(f"Generating evaluation for step: {step_type} (Attempt {attempt + 1})...")
                 response = client.models.generate_content(
                     model=self.model_name,
                     contents=prompt
                 )
                 return response.text
             except Exception as e:
-                print(f"Error generating evaluation: {e}")
+                logger.error(f"Error generating evaluation: {e}")
                 time.sleep(2 ** attempt)
         
         return "Evaluation unavailable due to high traffic."
+
+    def get_hiring_manager_feedback(self, context: str, history: list, bar_raiser_feedback: str = None) -> str:
+        if not client:
+            return "Gemini API Key not configured. Mock HM feedback."
+            
+        br_section = ""
+        if bar_raiser_feedback:
+            br_section = f"\n**Technical Evaluation (Bar Raiser)**:\n{bar_raiser_feedback}\n"
+
+        prompt = f"""
+        You are a seasoned Hiring Manager at a top-tier tech company. You are reviewing an interview transcript AND a technical evaluation from a "Bar Raiser" to decide if this candidate is someone you want on your team.
+        
+        Your perspective is DIFFERENT from the Bar Raiser. While they focus on technical correctness, YOU focus on "Hireability", "Team Impact", and "Actionable Growth".
+        
+        **Context**:
+        {context}
+        
+        **Interview Transcript**:
+        {history}
+        {br_section}
+        
+        **Instructions**:
+        1. **Aligned but Independent**: Use the Bar Raiser's feedback to understand the candidate's technical standing, but provide YOUR OWN managerial perspective.
+        2. **Fresh Considerations**: Provide insights that a technical evaluator might miss (e.g., communication style, attitude, clarity of thought, potential for growth).
+        3. **Actionable Advice**: Give 3-5 VERY specific tips on what they need to change or emphasize to get the "Hire" verdict from a manager, taking into account their technical performance.
+        4. **Key Missing Element**: What is the ONE thing that, if fixed, would make them an irresistible hire?
+        
+        **Format**:
+        ### 💼 Hiring Manager's Perspective
+        *Fresh considerations for your hireability:*
+
+        - **Actionable Tip**: ...
+        - **Actionable Tip**: ...
+        ...
+        
+        **🎯 The "Hire" Closer**: [The one thing you need to nail to get the offer]
+        """
+        
+        retries = 3
+        for attempt in range(retries):
+            try:
+                logger.info(f"Generating HM feedback (Attempt {attempt + 1})...")
+                response = client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                )
+                return response.text
+            except Exception as e:
+                logger.error(f"Error generating HM feedback: {e}")
+                time.sleep(2 ** attempt)
+        
+        return "Hiring Manager feedback unavailable."
 
 ai_service = AIService()

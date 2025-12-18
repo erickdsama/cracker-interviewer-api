@@ -19,3 +19,4 @@ python-docx
 celery
 redis
 google-auth
+boto3

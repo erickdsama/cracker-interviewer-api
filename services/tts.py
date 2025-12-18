@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from typing import Iterator
+from ..core.logger import get_logger
+
+logger = get_logger(__name__)
 
 class TTSService:
     def generate_speech(self, text: str) -> Iterator[bytes]:
@@ -28,7 +31,7 @@ class OpenAITTSService(TTSService):
             # Stream the response
             return response.iter_bytes()
         except Exception as e:
-            print(f"Error generating OpenAI speech: {e}")
+            logger.error(f"Error generating OpenAI speech: {e}")
             raise e
 
 class GoogleTTSService(TTSService):
@@ -60,7 +63,7 @@ class GoogleTTSService(TTSService):
             # Google TTS returns full content, so we yield it as a single chunk
             yield response.audio_content
         except Exception as e:
-            print(f"Error generating Google speech: {e}")
+            logger.error(f"Error generating Google speech: {e}")
             raise e
 
 def get_tts_service(tier: str = "free") -> TTSService:
